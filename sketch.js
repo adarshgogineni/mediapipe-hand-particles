@@ -1,7 +1,14 @@
 const PARTICLE_COUNT = 3000;
+const FINGERTIPS = [4, 8, 12, 16, 20];
 let particles = [];
 let capture;
-let handLandmarks = []; // updated each frame by MediaPipe
+let handLandmarks = [];
+
+function isPinching(landmarks) {
+  let t = landmarks[4];
+  let i = landmarks[8];
+  return dist(t.x, t.y, i.x, i.y) < 0.06;
+}
 
 function setupMediaPipe(videoEl) {
   const hands = new Hands({
@@ -31,7 +38,6 @@ function setupMediaPipe(videoEl) {
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  // Pass video element to MediaPipe once capture is ready
   capture = createCapture(VIDEO, () => {
     setupMediaPipe(capture.elt);
   });
@@ -55,6 +61,15 @@ function draw() {
   rect(0, 0, width, height);
 
   for (let p of particles) {
+    for (let landmarks of handLandmarks) {
+      let mode = isPinching(landmarks) ? 'attract' : 'repel';
+      for (let idx of FINGERTIPS) {
+        let lm = landmarks[idx];
+        let lx = (1 - lm.x) * width;
+        let ly = lm.y * height;
+        p.applyForce(lx, ly, mode);
+      }
+    }
     p.update();
     p.edges(width, height);
     p.draw();
