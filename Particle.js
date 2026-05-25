@@ -25,11 +25,15 @@ class Particle {
   explode(lx, ly) {
     let dir = p5.Vector.sub(this.pos, createVector(lx, ly));
     let d = dir.mag();
-    if (d < 500 && d > 1) {
-      dir.normalize();
-      dir.mult(map(d, 0, 500, 55, 12));
-      this.vel.add(dir); // direct velocity impulse, not through acc
-      this.maxSpeed = 55; // uncap so explosion isn't clipped
+    if (d < 500) {
+      if (d < 8) {
+        // Particle is at the pinch point — random radial direction
+        dir = p5.Vector.random2D().mult(55);
+      } else {
+        dir.normalize().mult(map(d, 0, 500, 55, 12));
+      }
+      this.vel.add(dir);
+      this.maxSpeed = 55;
     }
   }
 
