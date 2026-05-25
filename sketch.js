@@ -1,4 +1,4 @@
-const PARTICLE_COUNT = 3000;
+const PARTICLE_COUNT = 6000;
 const FINGERTIPS = [4, 8, 12, 16, 20];
 let particles = [];
 let videoEl;
@@ -62,7 +62,7 @@ function draw() {
   }
 
   noStroke();
-  fill(0, 0, 0, 50);
+  fill(0, 0, 0, 30);
   rect(0, 0, width, height);
 
   for (let p of particles) {
