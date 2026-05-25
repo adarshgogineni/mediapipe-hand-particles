@@ -3,7 +3,7 @@ class Particle {
     this.pos = createVector(random(w), random(h));
     this.vel = p5.Vector.random2D().mult(random(0.5, 2.0));
     this.acc = createVector(0, 0);
-    this.size = random(3, 9);
+    this.size = random(1.5, 5); // radius for ctx.arc
     this.hue = random(0, 360);
   }
 
@@ -21,11 +21,19 @@ class Particle {
     }
   }
 
-  update() {
-    // Perlin noise drift — organic flow when no hands present
-    let angle = noise(this.pos.x * 0.003, this.pos.y * 0.003, frameCount * 0.005) * TWO_PI * 2;
-    this.acc.add(p5.Vector.fromAngle(angle).mult(0.15));
+  explode(lx, ly) {
+    let force = p5.Vector.sub(this.pos, createVector(lx, ly));
+    let d = force.mag();
+    if (d < 400 && d > 1) {
+      force.normalize();
+      force.mult(map(d, 0, 400, 32, 8));
+      this.acc.add(force);
+    }
+  }
 
+  // flowAngle pre-computed by sketch — avoids noise() call per particle
+  update(flowAngle) {
+    this.acc.add(p5.Vector.fromAngle(flowAngle).mult(0.15));
     this.vel.add(this.acc);
     this.vel.limit(8);
     this.pos.add(this.vel);
@@ -40,17 +48,21 @@ class Particle {
     if (this.pos.y > h) this.pos.y = 0;
   }
 
-  draw() {
+  // Raw canvas calls — no colorMode switching overhead
+  draw(ctx) {
     let speed = this.vel.mag();
-    let dynamicHue = (this.hue + speed * 20) % 360;
-    noStroke();
-    colorMode(HSB, 360, 100, 100, 100);
-    // Soft outer glow
-    fill(dynamicHue, 85, 100, 22);
-    circle(this.pos.x, this.pos.y, this.size * 4);
-    // Bright core
-    fill(dynamicHue, 70, 100, 92);
-    circle(this.pos.x, this.pos.y, this.size);
-    colorMode(RGB, 255, 255, 255, 255);
+    let h = (this.hue + speed * 20) % 360;
+    let r = this.size;
+    const TAU = Math.PI * 2;
+
+    ctx.fillStyle = `hsla(${h},100%,60%,0.08)`;
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, r * 3, 0, TAU);
+    ctx.fill();
+
+    ctx.fillStyle = `hsla(${h},80%,88%,0.92)`;
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, r, 0, TAU);
+    ctx.fill();
   }
 }
