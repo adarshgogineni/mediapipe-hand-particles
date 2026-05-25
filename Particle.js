@@ -3,8 +3,9 @@ class Particle {
     this.pos = createVector(random(w), random(h));
     this.vel = p5.Vector.random2D().mult(random(0.5, 2.0));
     this.acc = createVector(0, 0);
-    this.size = random(1.5, 5); // radius for ctx.arc
+    this.size = random(2, 6); // radius for arc()
     this.hue = random(0, 360);
+    this.maxSpeed = 8;
   }
 
   applyForce(lx, ly, mode) {
@@ -22,23 +23,24 @@ class Particle {
   }
 
   explode(lx, ly) {
-    let force = p5.Vector.sub(this.pos, createVector(lx, ly));
-    let d = force.mag();
-    if (d < 400 && d > 1) {
-      force.normalize();
-      force.mult(map(d, 0, 400, 32, 8));
-      this.acc.add(force);
+    let dir = p5.Vector.sub(this.pos, createVector(lx, ly));
+    let d = dir.mag();
+    if (d < 500 && d > 1) {
+      dir.normalize();
+      dir.mult(map(d, 0, 500, 55, 12));
+      this.vel.add(dir); // direct velocity impulse, not through acc
+      this.maxSpeed = 55; // uncap so explosion isn't clipped
     }
   }
 
-  // flowAngle pre-computed by sketch — avoids noise() call per particle
   update(flowAngle) {
     this.acc.add(p5.Vector.fromAngle(flowAngle).mult(0.15));
     this.vel.add(this.acc);
-    this.vel.limit(8);
+    this.vel.limit(this.maxSpeed);
     this.pos.add(this.vel);
     this.acc.mult(0);
     this.vel.mult(0.92);
+    if (this.maxSpeed > 8) this.maxSpeed = Math.max(8, this.maxSpeed * 0.93);
   }
 
   edges(w, h) {
@@ -46,23 +48,5 @@ class Particle {
     if (this.pos.x > w) this.pos.x = 0;
     if (this.pos.y < 0) this.pos.y = h;
     if (this.pos.y > h) this.pos.y = 0;
-  }
-
-  // Raw canvas calls — no colorMode switching overhead
-  draw(ctx) {
-    let speed = this.vel.mag();
-    let h = (this.hue + speed * 20) % 360;
-    let r = this.size;
-    const TAU = Math.PI * 2;
-
-    ctx.fillStyle = `hsla(${h},100%,60%,0.08)`;
-    ctx.beginPath();
-    ctx.arc(this.pos.x, this.pos.y, r * 3, 0, TAU);
-    ctx.fill();
-
-    ctx.fillStyle = `hsla(${h},80%,88%,0.92)`;
-    ctx.beginPath();
-    ctx.arc(this.pos.x, this.pos.y, r, 0, TAU);
-    ctx.fill();
   }
 }
