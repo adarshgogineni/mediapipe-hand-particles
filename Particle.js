@@ -3,7 +3,7 @@ class Particle {
     this.pos = createVector(random(w), random(h));
     this.vel = p5.Vector.random2D().mult(random(0.5, 2.0));
     this.acc = createVector(0, 0);
-    this.size = random(2, 6); // radius for arc()
+    this.size = random(2, 6);
     this.hue = random(0, 360);
     this.maxSpeed = 8;
   }
@@ -23,18 +23,25 @@ class Particle {
   }
 
   explode(lx, ly) {
-    let dir = p5.Vector.sub(this.pos, createVector(lx, ly));
-    let d = dir.mag();
-    if (d < 500) {
-      if (d < 8) {
-        // Particle is at the pinch point — random radial direction
-        dir = p5.Vector.random2D().mult(55);
-      } else {
-        dir.normalize().mult(map(d, 0, 500, 55, 12));
-      }
-      this.vel.add(dir);
-      this.maxSpeed = 55;
+    let dx = this.pos.x - lx;
+    let dy = this.pos.y - ly;
+    let d = Math.sqrt(dx * dx + dy * dy);
+
+    let nx, ny;
+    if (d < 15) {
+      // At pinch point — random radial direction
+      let angle = Math.random() * Math.PI * 2;
+      nx = Math.cos(angle);
+      ny = Math.sin(angle);
+    } else {
+      nx = dx / d;
+      ny = dy / d;
     }
+
+    let speed = map(Math.min(d, 500), 0, 500, 55, 10);
+    // SET velocity directly — don't add to near-zero attract-mode vel
+    this.vel.set(nx * speed, ny * speed);
+    this.maxSpeed = 55;
   }
 
   update(flowAngle) {

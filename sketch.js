@@ -3,20 +3,22 @@ const FINGERTIPS = [4, 8, 12, 16, 20];
 const FLOW_COLS = 40;
 const FLOW_ROWS = 25;
 const TAU = Math.PI * 2;
-const NUM_BUCKETS = 36; // 10° hue buckets
+const NUM_BUCKETS = 36;
 
 let particles = [];
 let videoEl;
 let handLandmarks = [];
-let prevPinching = [];
+
+// Simple pinch state — boolean is harder to break than per-hand index tracking
+let pinchActive = false;
+let pinchOriginX = 0;
+let pinchOriginY = 0;
+
+const buckets = Array.from({ length: NUM_BUCKETS }, () => []);
 let flowField = new Float32Array(FLOW_COLS * FLOW_ROWS);
 
-// Pre-allocated buckets — cleared each frame without GC pressure
-const buckets = Array.from({ length: NUM_BUCKETS }, () => []);
-
 function isPinching(landmarks) {
-  let t = landmarks[4];
-  let i = landmarks[8];
+  let t = landmarks[4], i = landmarks[8];
   return dist(t.x, t.y, i.x, i.y) < 0.06;
 }
 
@@ -44,22 +46,18 @@ function setupMediaPipe() {
   const hands = new Hands({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
   });
-
   hands.setOptions({
     maxNumHands: 2,
     modelComplexity: 1,
     minDetectionConfidence: 0.7,
     minTrackingConfidence: 0.5
   });
-
   hands.onResults((results) => {
     handLandmarks = results.multiHandLandmarks || [];
   });
 
   const camera = new Camera(videoEl, {
-    onFrame: async () => {
-      await hands.send({ image: videoEl });
-    },
+    onFrame: async () => { await hands.send({ image: videoEl }); },
     width: 1280,
     height: 720
   });
@@ -70,7 +68,6 @@ function setup() {
   createCanvas(windowWidth, windowHeight);
   setupMediaPipe();
   updateFlowField();
-
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     particles.push(new Particle(width, height));
   }
@@ -92,53 +89,48 @@ function draw() {
 
   if (frameCount % 2 === 0) updateFlowField();
 
-  // Pre-compute pinch state + detect release before particle loop
-  let pinchStates = [];
-  for (let hi = 0; hi < handLandmarks.length; hi++) {
-    let pinching = isPinching(handLandmarks[hi]);
-    pinchStates.push({
-      pinching,
-      justReleased: !pinching && prevPinching[hi] === true
-    });
-    prevPinching[hi] = pinching;
+  // Determine if ANY hand is currently pinching
+  let nowPinching = false;
+  for (let landmarks of handLandmarks) {
+    if (isPinching(landmarks)) {
+      nowPinching = true;
+      // Keep updating origin while pinching so it's accurate at moment of release
+      let lm = landmarks[8];
+      pinchOriginX = (1 - lm.x) * width;
+      pinchOriginY = lm.y * height;
+      break;
+    }
   }
 
-  // Physics
+  // Single boolean transition: was pinching → not pinching = explode
+  let justReleased = pinchActive && !nowPinching;
+  pinchActive = nowPinching;
+
   for (let p of particles) {
-    for (let hi = 0; hi < handLandmarks.length; hi++) {
-      let landmarks = handLandmarks[hi];
-      let { pinching, justReleased } = pinchStates[hi];
+    if (justReleased) p.explode(pinchOriginX, pinchOriginY);
 
-      if (justReleased) {
-        let lm = landmarks[8];
-        p.explode((1 - lm.x) * width, lm.y * height);
-      }
-
-      let mode = pinching ? 'attract' : 'repel';
+    for (let landmarks of handLandmarks) {
+      let mode = isPinching(landmarks) ? 'attract' : 'repel';
       for (let idx of FINGERTIPS) {
         let lm = landmarks[idx];
         p.applyForce((1 - lm.x) * width, lm.y * height, mode);
       }
     }
+
     p.update(getFlowAngle(p.pos.x, p.pos.y));
     p.edges(width, height);
   }
 
-  // --- Batched rendering: 1 glow pass + 36 core passes = 37 fill() calls ---
-  // Previously: 2 fill() calls × 6000 particles = 12,000 fill() calls/frame
+  // Batched rendering
   let ctx = drawingContext;
 
-  // Clear buckets
   for (let b = 0; b < NUM_BUCKETS; b++) buckets[b].length = 0;
-
-  // Bin particles by current hue (velocity-shifted)
   for (let p of particles) {
     let speed = p.vel.mag();
     let b = Math.floor(((p.hue + speed * 20) % 360) / 10);
     buckets[b].push(p);
   }
 
-  // Single white glow pass for all particles (1 fill call)
   ctx.fillStyle = 'rgba(255,255,255,0.05)';
   ctx.beginPath();
   for (let p of particles) {
@@ -147,7 +139,6 @@ function draw() {
   }
   ctx.fill();
 
-  // Colored core pass — one fill per occupied hue bucket (~37 max)
   for (let b = 0; b < NUM_BUCKETS; b++) {
     if (!buckets[b].length) continue;
     ctx.fillStyle = `hsla(${b * 10 + 5},85%,72%,0.9)`;
