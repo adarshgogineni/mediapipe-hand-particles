@@ -1,7 +1,7 @@
 const PARTICLE_COUNT = 3000;
 const FINGERTIPS = [4, 8, 12, 16, 20];
 let particles = [];
-let capture;
+let videoEl;
 let handLandmarks = [];
 
 function isPinching(landmarks) {
@@ -10,7 +10,12 @@ function isPinching(landmarks) {
   return dist(t.x, t.y, i.x, i.y) < 0.06;
 }
 
-function setupMediaPipe(videoEl) {
+function setupMediaPipe() {
+  videoEl = document.createElement('video');
+  videoEl.setAttribute('playsinline', '');
+  videoEl.style.display = 'none';
+  document.body.appendChild(videoEl);
+
   const hands = new Hands({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
   });
@@ -30,19 +35,15 @@ function setupMediaPipe(videoEl) {
     onFrame: async () => {
       await hands.send({ image: videoEl });
     },
-    width: 640,
-    height: 480
+    width: 1280,
+    height: 720
   });
   camera.start();
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  capture = createCapture(VIDEO, () => {
-    setupMediaPipe(capture.elt);
-  });
-  capture.size(width, height);
-  capture.hide();
+  setupMediaPipe();
 
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     particles.push(new Particle(width, height));
@@ -50,11 +51,15 @@ function setup() {
 }
 
 function draw() {
-  push();
-  translate(width, 0);
-  scale(-1, 1);
-  image(capture, 0, 0, width, height);
-  pop();
+  if (videoEl && videoEl.readyState >= 2) {
+    push();
+    translate(width, 0);
+    scale(-1, 1);
+    drawingContext.drawImage(videoEl, 0, 0, width, height);
+    pop();
+  } else {
+    background(0);
+  }
 
   noStroke();
   fill(0, 0, 0, 50);
