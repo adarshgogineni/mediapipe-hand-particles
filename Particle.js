@@ -42,7 +42,7 @@ class Particle {
     noStroke();
     colorMode(HSB, 360, 100, 100, 100);
     fill(dynamicHue, 80, 100, 80);
-    colorMode(RGB, 255, 255, 255, 255);
     circle(this.pos.x, this.pos.y, this.size);
+    colorMode(RGB, 255, 255, 255, 255);
   }
 }
